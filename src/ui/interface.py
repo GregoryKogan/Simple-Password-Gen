@@ -137,3 +137,7 @@ def select_service(pw_manager: PasswordManager) -> str:
     print(colored("Select a service", "blue"))
     menu_entry_index = terminal_menu.show()
     return services[menu_entry_index]
+
+
+def no_services_message():
+    print(colored("You have no registered services yet", "green"))

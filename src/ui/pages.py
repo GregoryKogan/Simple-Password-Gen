@@ -38,16 +38,25 @@ def new_service_page(pw_manager: PasswordManager) -> None:
 
 
 def get_password_page(pw_manager: PasswordManager) -> None:
-    interface.page_header()
-    ms_password = interface.verify_master_password(pw_manager)
-    service_name = interface.select_service(pw_manager)
-    interface.show_service_password(pw_manager, ms_password, service_name)
+    if len(pw_manager.get_available_services()):
+        interface.page_header()
+        ms_password = interface.verify_master_password(pw_manager)
+        service_name = interface.select_service(pw_manager)
+        interface.show_service_password(pw_manager, ms_password, service_name)
+    else:
+        interface.no_services_message()
+
     interface.go_back_input()
 
 
 def remove_service_page(pw_manager: PasswordManager) -> None:
     interface.page_header()
-    service_name = interface.select_service(pw_manager)
-    pw_manager.remove_service(service_name)
-    interface.service_removal_success(service_name)
+
+    if len(pw_manager.get_available_services()):
+        service_name = interface.select_service(pw_manager)
+        pw_manager.remove_service(service_name)
+        interface.service_removal_success(service_name)
+    else:
+        interface.no_services_message()
+        
     interface.go_back_input()

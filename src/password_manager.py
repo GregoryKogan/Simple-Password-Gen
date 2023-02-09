@@ -3,6 +3,9 @@ import socket
 import random
 import string
 import hmac
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
+from argon2.low_level import hash_secret, Type
 from storage import Storage
 import config
 
@@ -11,11 +14,7 @@ class PasswordManager:
     def __init__(self):
         self._storage = Storage()
         self._pepper = socket.gethostname()
-
-    @staticmethod
-    def generate_salt(length: int = 16) -> str:
-        letters = string.ascii_letters + string.digits
-        return "".join(random.choice(letters) for _ in range(length))
+        self.hasher: PasswordHasher = PasswordHasher()
 
     @staticmethod
     def validate_password(password: str) -> list[str]:
@@ -32,9 +31,8 @@ class PasswordManager:
             problems.append("Password must contain special characters: '$#@!*'")
         return problems
 
-    @staticmethod
-    def secure_hash(data: str) -> str:
-        return hashlib.sha3_512(bytes(data, "utf-8")).hexdigest()
+    def secure_hash(self, data: str) -> str:
+        return self.hasher.hash(data)
 
     def password_exists(self, name: str) -> bool:
         return self._storage.read(f"{name}_password") is not None
@@ -46,21 +44,19 @@ class PasswordManager:
         if len(PasswordManager.validate_password(password)):
             raise ValueError("Password is too weak")
 
-        salt = PasswordManager.generate_salt()
-        hashed = PasswordManager.secure_hash(password + salt + self._pepper)
-        self._storage.write(f"{name}_password", f"{hashed}${salt}")
-
-    def get_salt(self, name: str) -> str:
-        if not self.password_exists(name):
-            raise ValueError(f"{name} password is not set".capitalize())
-        return self._storage.read(f"{name}_password").split("$")[1]
+        hashed = self.secure_hash(password + self._pepper)
+        self._storage.write(f"{name}_password", hashed)
 
     def check_password(self, password: str, name: str) -> bool:
-        salt = self.get_salt(name)
-        hashed = PasswordManager.secure_hash(password + salt + self._pepper)
-        return hmac.compare_digest(
-            self._storage.read(f"{name}_password"), f"{hashed}${salt}"
-        )
+        try:
+            self.hasher.verify(self._storage.read(f"{name}_password"), password + self._pepper)
+        except VerifyMismatchError:
+            return False
+        
+        if self.hasher.check_needs_rehash(self._storage.read(f"{name}_password")):
+            self._storage.write(f"{name}_password", self.secure_hash(password + self._pepper))
+
+        return True
     
     def service_registered(self, service_name: str) -> bool:
         services = self._storage.read("services")
@@ -108,8 +104,12 @@ class PasswordManager:
         if service_name not in self._storage.read("services"):
             return "", f"service '{service_name}' was not registered"
 
-        service_password = PasswordManager.secure_hash(
-            ms_pass + self.get_salt(config.MASTER_PW_NAME) + self._pepper + service_name
-        )[:32].capitalize()
+        seed = hash_secret(
+            bytes(ms_pass + service_name, "utf-8"), 
+            bytes(self._pepper, "utf-8"),
+            time_cost=1, memory_cost=8, parallelism=1, hash_len=64, type=Type.ID
+        )
+        
+        service_password = seed.decode("utf-8")[-16:].capitalize()
 
         return service_password, "success"

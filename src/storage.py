@@ -19,11 +19,15 @@ class Storage:
 
     def save(self):
         with open(self._filename, "w") as storage:
-            storage.write(AESCipher.encrypt(self.encryption_key, json.dumps(self._data)))
+            storage.write(
+                AESCipher.encrypt(self.encryption_key, json.dumps(self._data))
+            )
 
     def load(self):
         with open(self._filename, "r") as storage:
-            self._data = json.loads(AESCipher.decrypt(self.encryption_key, storage.read()))
+            self._data = json.loads(
+                AESCipher.decrypt(self.encryption_key, storage.read())
+            )
 
     def write(self, key: str, value: object) -> None:
         self._data[key] = value

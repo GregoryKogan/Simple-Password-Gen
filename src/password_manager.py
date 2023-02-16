@@ -2,7 +2,7 @@ import string
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 from argon2.low_level import hash_secret
-from hashlib import sha3_512, sha3_224
+from hashlib import sha3_224
 from storage import Storage
 import os
 from base64 import b64encode
@@ -33,24 +33,32 @@ class PasswordManager:
 
     @staticmethod
     def _convert_to_password(seed: str) -> str:
-        # Hash the input hex string to produce a seed value
-        seed_num = int(sha3_224(seed.encode()).hexdigest(), 16)
+        special_chars = "!@#=$%&*+-?_" * 2
+        symbols = string.ascii_letters + string.digits + special_chars
+        hashed = sha3_224(seed.encode()).digest()
+        password = ""
+        byte_ind = 0
+        while byte_ind < len(hashed) - 4:
+            password += symbols[hashed[byte_ind] % len(symbols)]
+            byte_ind += 1
 
-        hex_list = list(sha3_512(seed.encode()).hexdigest()[: config.PASSWORD_LENGTH])
+        if all(c not in string.ascii_lowercase for c in password):
+            password += string.ascii_lowercase[
+                hashed[byte_ind] % len(string.ascii_lowercase)
+            ]
+            byte_ind += 1
+        if all(c not in string.ascii_uppercase for c in password):
+            password += string.ascii_uppercase[
+                hashed[byte_ind] % len(string.ascii_uppercase)
+            ]
+            byte_ind += 1
+        if all(c not in string.digits for c in password):
+            password += string.digits[hashed[byte_ind] % len(string.digits)]
+            byte_ind += 1
+        if all(c not in special_chars for c in password):
+            password += special_chars[hashed[byte_ind] % len(special_chars)]
 
-        # Deterministically replace some bytes with characters from various character sets
-        special_chars = "!$%&*+-?_"
-        for i in range(len(hex_list)):
-            if i % 5 == 0:
-                hex_list[i] = string.ascii_lowercase[(seed_num // (i + 1)) % 26]
-            elif i % 5 == 1:
-                hex_list[i] = string.ascii_uppercase[(seed_num // (i + 1)) % 26]
-            elif i % 5 == 2:
-                hex_list[i] = string.digits[(seed_num // (i + 1)) % 10]
-            elif i % 5 == 3:
-                hex_list[i] = special_chars[(seed_num // (i + 1)) % len(special_chars)]
-
-        return "".join(hex_list)
+        return password
 
     def _init_salt(self) -> str:
         if self._storage.stores_key(config.SALT_KEY):

@@ -59,7 +59,9 @@ def get_password_page(password_manager: PasswordManager) -> None:
 
     password = password_manager.generate_password(master_password, service_name)
     interface.mnemonic_message()
-    Mnemonic.display_ascii_image((60, 40), seed=password_manager.calc_mnemonic_seed(master_password), char="█")
+    Mnemonic.display_ascii_image(
+        (60, 40), seed=password_manager.calc_mnemonic_seed(master_password), char="█"
+    )
     interface.show_service_password(password, service_name)
 
     interface.go_back_input()

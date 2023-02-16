@@ -8,7 +8,6 @@ SERVICES_KEY = "services"
 STORAGE_SALT_KEY = "storage_salt"
 STORAGE_DATA_KEY = "storage_data"
 SALT_LENGTH = 32
-PASSWORD_LENGTH = 24
 HASHER_PARAMS = profiles.RFC_9106_HIGH_MEMORY
 QUESTIONARY_STYLE = Style(
     [

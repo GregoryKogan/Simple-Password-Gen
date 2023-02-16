@@ -118,7 +118,7 @@ def show_service_password(password: str, service_name: str) -> None:
         colored("Your", "green"),
         colored(f"'{service_name}'", "blue"),
         colored("password is:", "green"),
-        colored(password, "yellow", attrs=['bold']),
+        colored(password, "yellow", attrs=["bold"]),
     )
 
 
@@ -143,4 +143,3 @@ def mnemonic_message() -> None:
     print()
     print("This is your mnemonic picture")
     print("If it changes, it will mean that you entered the password incorrectly")
-

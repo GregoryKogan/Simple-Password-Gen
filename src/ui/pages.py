@@ -2,6 +2,7 @@ import config
 from password_manager import PasswordManager
 from storage import Storage
 import ui.interface as interface
+from mnemonic import Mnemonic
 
 
 def start_page() -> PasswordManager:
@@ -57,6 +58,8 @@ def get_password_page(password_manager: PasswordManager) -> None:
         return
 
     password = password_manager.generate_password(master_password, service_name)
+    interface.mnemonic_message()
+    Mnemonic.display_ascii_image((60, 40), seed=password_manager.calc_mnemonic_seed(master_password), char="█")
     interface.show_service_password(password, service_name)
 
     interface.go_back_input()

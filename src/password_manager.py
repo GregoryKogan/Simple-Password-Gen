@@ -7,6 +7,7 @@ from storage import Storage
 import os
 from base64 import b64encode
 import config
+from mnemonic import Mnemonic
 
 
 class PasswordManager:
@@ -127,6 +128,9 @@ class PasswordManager:
                 PasswordManager._combine_strings([master_password, service_name])
             )
         )
+
+    def calc_mnemonic_seed(self, master_password: str) -> int:
+        return Mnemonic.to_seed(self._hash(master_password))
 
     def add_service(self, service_name: str) -> None:
         if not len(service_name):

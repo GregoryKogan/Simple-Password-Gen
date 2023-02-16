@@ -1,5 +1,6 @@
 import json
 import os
+from base64 import b64encode
 from argon2.low_level import hash_secret
 from aes_cipher import AESCipher
 import config
@@ -39,13 +40,14 @@ class Storage:
         )
 
     def _save(self):
+        salt = b64encode(os.urandom(config.SALT_LENGTH)).decode("utf-8")
         with open(self._filename, "w") as storage:
             json.dump({
-                config.STORAGE_SALT_KEY: "SUPER SECURE SALT",
+                config.STORAGE_SALT_KEY: salt,
                 config.STORAGE_DATA_KEY: AESCipher.encrypt(
                     Storage._hash(
                         data=self._encryption_key,
-                        salt="SUPER SECURE SALT"
+                        salt=salt
                     ),
                     json.dumps(self._data)
                 )

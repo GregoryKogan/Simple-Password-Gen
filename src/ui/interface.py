@@ -30,18 +30,22 @@ def print_problem(problem: str) -> None:
 def input_app_password() -> str:
     password = ""
     while len(PasswordManager.validate_password(password)):
-        password = input(colored("Set app password: ", "blue"))
+        password = questionary.password("Set app password: ").ask()
         for problem in PasswordManager.validate_password(password):
             print_problem(problem)
 
-    print(colored("Success!", "green"))
+    success_message()
     return password
+
+
+def input_master_password() -> str:
+    return questionary.password("Master password: ").ask()
 
 
 def login() -> PasswordManager:
     password_manager = None
     while password_manager is None:
-        password = input(colored("Enter the app password to log in: ", "blue"))
+        password = questionary.password("Enter the app password to log in: ").ask()
         problems = PasswordManager.validate_password(password)
         if len(problems):
             for problem in problems:
@@ -55,7 +59,7 @@ def login() -> PasswordManager:
             print_problem("Wrong app password")
             continue
 
-    print(colored("Success!", "green"))
+    success_message()
     return password_manager
 
 
@@ -116,7 +120,7 @@ def show_service_password(password: str, service_name: str) -> None:
     )
 
 
-def go_back_input():
+def go_back_input() -> None:
     print()
     input(colored("Press enter to go back", "cyan"))
 
@@ -129,9 +133,5 @@ def select_service(services: list[str], question: str) -> str:
     ).ask()
 
 
-def no_services_message():
+def no_services_message() -> None:
     print(colored("You have no registered services yet", "green"))
-
-
-def input_master_password() -> str:
-    return questionary.password("Master password: ").ask()

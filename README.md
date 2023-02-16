@@ -2,18 +2,39 @@
 
 ## Project setup
 
-### Create virtual environment and activate it
+### Linux/MacOS (Unix)
+
+#### Create virtual environment and activate it
 ```shell
 python3 -m venv venv
 source venv/bin/activate
 ```
 
-### Install dependencies
+#### Install dependencies
 ```shell
 pip3 install -r requirements.txt
 ```
 
-### Run the script
+#### Run the script
 ```shell
 python3 src/main.py
 ```
+
+### Windows
+
+#### Create virtual environment and activate it
+```shell
+python3 -m venv venv
+.\venv\Scripts\activate.bat
+```
+
+#### Install dependencies
+```shell
+pip3 install -r requirements.txt
+```
+
+#### Run the script
+```shell
+python3 .\src\main.py
+```
+

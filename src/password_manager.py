@@ -1,28 +1,37 @@
 import string
 from argon2 import PasswordHasher
-from argon2.low_level import hash_secret, Type
+from argon2.exceptions import VerifyMismatchError
+from argon2.low_level import hash_secret
 from hashlib import sha3_512, sha3_224
 from storage import Storage
 import os
 from base64 import b64encode
-from aes_cipher import AESCipher
 import config
 
 
 class PasswordManager:
-    def __init__(self, app_password):
+    def __init__(self, app_password: str):
         if len(PasswordManager.validate_password(app_password)):
             raise ValueError("Invalid app password")
 
-        self._storage: Storage = Storage(app_password)
-        self._salt: str = self.init_salt()
+        try:
+            self._storage: Storage = Storage(app_password, config.STORAGE_FILENAME)
+        except ValueError as e:
+            raise ValueError("Wrong app password") from e
+
+        self._salt: str = self._init_salt()
+        self._storage.write(config.APP_KEY, self._hash(app_password, stable=False))
+
+    @property
+    def services(self) -> list[str]:
+        return self._storage.read(config.SERVICES_KEY) or []
 
     @staticmethod
-    def combine_strings(strings: list[str]) -> str:
+    def _combine_strings(strings: list[str]) -> str:
         return "".join(f"{len(s)}:{s}" for s in strings)
 
     @staticmethod
-    def convert_to_password(seed: str) -> str:
+    def _convert_to_password(seed: str) -> str:
         # Hash the input hex string to produce a seed value
         seed_num = int(sha3_224(seed.encode()).hexdigest(), 16)
 
@@ -42,6 +51,45 @@ class PasswordManager:
 
         return "".join(hex_list)
 
+    def _init_salt(self) -> str:
+        if self._storage.stores_key(config.SALT_KEY):
+            return str(self._storage.read(config.SALT_KEY))
+        salt = b64encode(os.urandom(config.SALT_LENGTH)).decode("utf-8")
+        self._storage.write(config.SALT_KEY, salt)
+        return salt
+
+    def _hash(self, data: str, stable: bool = True) -> str:
+        return (
+            hash_secret(
+                data.encode(),
+                self._salt.encode(),
+                time_cost=config.HASHER_PARAMS.time_cost,
+                memory_cost=config.HASHER_PARAMS.memory_cost,
+                parallelism=config.HASHER_PARAMS.parallelism,
+                hash_len=config.HASHER_PARAMS.hash_len,
+                type=config.HASHER_PARAMS.type,
+            ).decode("utf-8")
+            if stable
+            else PasswordHasher.from_parameters(config.HASHER_PARAMS).hash(
+                PasswordManager._combine_strings([data, self._salt])
+            )
+        )
+
+    def _check_app_password(self, password: str) -> bool:
+        hasher = PasswordHasher.from_parameters(config.HASHER_PARAMS)
+        stored = str(self._storage.read(config.APP_KEY))
+        try:
+            hasher.verify(
+                stored, PasswordManager._combine_strings([password, self._salt])
+            )
+        except VerifyMismatchError:
+            return False
+
+        if hasher.check_needs_rehash(stored):
+            self._storage.write(config.APP_KEY, self._hash(password, stable=False))
+
+        return True
+
     @staticmethod
     def validate_password(password: str) -> list[str]:
         problems = []
@@ -57,102 +105,40 @@ class PasswordManager:
             problems.append("Password must contain special characters: '$#@!*'")
         return problems
 
-    def hash(self, data: str, stable: bool = False) -> str:
-        hasher = PasswordHasher()
-        return (
-            hash_secret(
-                bytes(data, "utf-8"),
-                bytes(self._salt, "utf-8"),
-                time_cost=1,
-                memory_cost=8,
-                parallelism=1,
-                hash_len=64,
-                type=Type.ID,
-            ).decode("utf-8")
-            if stable
-            else hasher.hash(PasswordManager.combine_strings([data, self._salt]))
-        )
-
-    def init_salt(self) -> str:
-        if self._storage.stores_key(config.SALT_KEY):
-            return str(self._storage.read(config.SALT_KEY))
-        salt = b64encode(os.urandom(config.SALT_LENGTH)).decode("utf-8")
-        self._storage.write(config.SALT_KEY, salt)
-        return salt
-
-    def init_pepper(self, master_password: str) -> None:
-        if self._storage.stores_key(config.PEPPER_KEY):
-            raise ValueError("Pepper already exists")
-
-        pepper = b64encode(os.urandom(config.PEPPER_LENGTH)).decode("utf-8")
-        key = self.hash(master_password, stable=True)
-        self._storage.write(config.PEPPER_KEY, AESCipher.encrypt(key, pepper))
-
-    def get_pepper(self, master_password: str) -> str:
-        if not self._storage.stores_key(config.PEPPER_KEY):
-            raise ValueError("Pepper does not exist")
-
-        encrypted = str(self._storage.read(config.PEPPER_KEY))
-        key = self.hash(master_password, stable=True)
-        return AESCipher.decrypt(key, encrypted)
-
-    def set_master(self, master_password: str) -> None:
-        if len(PasswordManager.validate_password(master_password)):
-            raise ValueError("Invalid password")
-
-        self.init_pepper(master_password)
+    def validate_master(self, master_password: str) -> list[str]:
+        problems = []
+        problems.extend(PasswordManager.validate_password(master_password))
+        if self._check_app_password(master_password):
+            problems.append("Master password must not match app password")
+        return problems
 
     def generate_password(self, master_password: str, service_name: str) -> str:
-        pepper = self.get_pepper(master_password)
-        return PasswordManager.convert_to_password(
-            self.hash(
-                PasswordManager.combine_strings(
-                    [master_password, pepper, service_name]
-                ),
-                stable=True,
+        if len(self.validate_master(master_password)):
+            raise ValueError("Invalid master password")
+
+        if service_name not in self.services:
+            raise ValueError(f"Service '{service_name}' does not exist")
+
+        if not len(service_name):
+            raise ValueError("Empty string can't represent a service")
+
+        return PasswordManager._convert_to_password(
+            self._hash(
+                PasswordManager._combine_strings([master_password, service_name])
             )
         )
 
-    def add_service(self, master_password: str, service_name: str) -> None:
-        if service_name in self.get_services(master_password):
-            return
+    def add_service(self, service_name: str) -> None:
+        if not len(service_name):
+            raise ValueError("Empty string can't represent a service")
 
-        services = []
-        if self._storage.stores_key(config.SERVICES_KEY):
-            services = self._storage.read(config.SERVICES_KEY)
+        services = self.services
+        if service_name not in services:
+            services.append(service_name)
+            self._storage.write(config.SERVICES_KEY, services)
 
-        pepper = self.get_pepper(master_password)
-        key = self.hash(
-            PasswordManager.combine_strings([master_password, pepper]), stable=True
-        )
-        services.append(AESCipher.encrypt(key, service_name))
-
-        self._storage.write(config.SERVICES_KEY, services)
-
-    def remove_service(self, master_password: str, service_name: str) -> None:
-        services = []
-        if self._storage.stores_key(config.SERVICES_KEY):
-            services = self._storage.read(config.SERVICES_KEY)
-
-        pepper = self.get_pepper(master_password)
-        key = self.hash(
-            PasswordManager.combine_strings([master_password, pepper]), stable=True
-        )
-        services.remove(AESCipher.encrypt(key, service_name))
-
-        self._storage.write(config.SERVICES_KEY, services)
-
-    def get_services(self, master_password: str) -> list[str]:
-        services = []
-        if self._storage.stores_key(config.SERVICES_KEY):
-            services = self._storage.read(config.SERVICES_KEY)
-
-        if not len(services):
-            return []
-
-        pepper = self.get_pepper(master_password)
-        key = self.hash(
-            PasswordManager.combine_strings([master_password, pepper]), stable=True
-        )
-
-        return [AESCipher.decrypt(key, service) for service in services]
+    def remove_service(self, service_name: str) -> None:
+        services = self.services
+        if service_name in services:
+            services.remove(service_name)
+            self._storage.write(config.SERVICES_KEY, services)

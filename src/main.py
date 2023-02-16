@@ -1,19 +1,22 @@
 from password_manager import PasswordManager
-import config
-from ui.pages import *
+from ui.pages import (
+    start_page,
+    main_menu_page,
+    new_service_page,
+    remove_service_page,
+    get_password_page,
+)
 
 
 if __name__ == "__main__":
-    pw_manager = PasswordManager()
-
-    start_page(pw_manager)
+    password_manager: PasswordManager = start_page()
     while True:
         action = main_menu_page()
         if action == "exit":
             exit()
         elif action == "new":
-            new_service_page(pw_manager)
+            new_service_page(password_manager)
         elif action == "get":
-            get_password_page(pw_manager)
+            get_password_page(password_manager)
         else:
-            remove_service_page(pw_manager)
+            remove_service_page(password_manager)

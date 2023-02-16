@@ -129,4 +129,5 @@ dmypy.json
 .pyre/
 
 .vscode
-storage.json
+.idea
+storage.*

@@ -3,5 +3,6 @@ argon2-cffi-bindings==21.2.0
 cffi==1.15.1
 pycparser==2.21
 pycryptodome==3.17
-simple-term-menu==1.6.1
+questionary==1.10.0
 termcolor==2.2.0
+wcwidth==0.2.6

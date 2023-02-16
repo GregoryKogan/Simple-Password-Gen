@@ -1,103 +1,95 @@
+import questionary
 from termcolor import colored
-from simple_term_menu import TerminalMenu
 import os
-from password_manager import PasswordManager
 import config
+from password_manager import PasswordManager
 
 
-def page_header() -> None:
-    os.system("cls" if os.name == "nt" else "clear")
-    pass_gen_line = """
+def get_page_header() -> str:
+    return colored(
+        """
 ██████   █████  ███████ ███████  ██████  ███████ ███    ██ 
 ██   ██ ██   ██ ██      ██      ██       ██      ████   ██ 
 ██████  ███████ ███████ ███████ ██   ███ █████   ██ ██  ██ 
 ██      ██   ██      ██      ██ ██    ██ ██      ██  ██ ██ 
 ██      ██   ██ ███████ ███████  ██████  ███████ ██   ████ 
-"""
-    print(colored(pass_gen_line, "green"))
+""",
+        "green",
+    )
+
+
+def page_header() -> None:
+    os.system("cls" if os.name == "nt" else "clear")
+    print(get_page_header())
 
 
 def print_problem(problem: str) -> None:
-    print(colored(problem.capitalize(), "red"))
+    print(colored(problem, "red"))
 
 
 def input_app_password() -> str:
     password = ""
-    while len(PasswordManager.validate_password(password)) > 0:
+    while len(PasswordManager.validate_password(password)):
         password = input(colored("Set app password: ", "blue"))
         for problem in PasswordManager.validate_password(password):
             print_problem(problem)
 
-    return password
-
-
-def input_master_password(pw_manager: PasswordManager) -> str:
-    password = ""
-    while len(
-        PasswordManager.validate_password(password)
-    ) > 0 or pw_manager.check_password(password, config.APP_PW_NAME):
-        password = input(colored("Set master password: ", "blue"))
-        for problem in PasswordManager.validate_password(password):
-            print_problem(problem)
-        if pw_manager.check_password(password, config.APP_PW_NAME):
-            print_problem(
-                "The master password must not be the same as the app password"
-            )
-
-    return password
-
-
-def login(pw_manager: PasswordManager) -> None:
-    password = ""
-    while not pw_manager.check_password(password, config.APP_PW_NAME):
-        password = input(colored("Enter the app password to log in: ", "blue"))
-        if not pw_manager.check_password(password, config.APP_PW_NAME):
-            print_problem("Invalid password")
     print(colored("Success!", "green"))
+    return password
+
+
+def login() -> PasswordManager:
+    password_manager = None
+    while password_manager is None:
+        password = input(colored("Enter the app password to log in: ", "blue"))
+        problems = PasswordManager.validate_password(password)
+        if len(problems):
+            for problem in problems:
+                print_problem(problem)
+            continue
+
+        try:
+            password_manager = PasswordManager(password)
+        except ValueError:
+            password_manager = None
+            print_problem("Wrong app password")
+            continue
+
+    print(colored("Success!", "green"))
+    return password_manager
 
 
 def select_action() -> str:
     options = [
-        "Register a new service",
         "Get a password for registered service",
+        "Register a new service",
         "Remove service",
         "Exit",
     ]
-    terminal_menu = TerminalMenu(options, menu_cursor_style=("fg_green", "bold"))
-    menu_entry_index = terminal_menu.show()
-
+    option = questionary.select(
+        "What do you want to do?", options, style=config.QUESTIONARY_STYLE
+    ).ask()
     status_lookup = {
         "Exit": "exit",
         "Register a new service": "new",
         "Get a password for registered service": "get",
         "Remove service": "remove",
     }
-    return status_lookup[options[menu_entry_index]]
+    return status_lookup[option]
 
 
-def verify_master_password(pw_manager: PasswordManager) -> str:
-    password = ""
-    while not pw_manager.check_password(password, config.MASTER_PW_NAME):
-        password = input(colored("Enter the master password: ", "blue"))
-        if not pw_manager.check_password(password, config.MASTER_PW_NAME):
-            print_problem("Invalid password")
-    print(colored("Success!\n", "green"))
-    return password
-
-
-def input_new_service_name(pw_manager: PasswordManager) -> str:
-    service_name = ""
-    while not service_name or pw_manager.service_registered(service_name):
-        service_name = input(colored("Enter service name: ", "blue"))
-        if pw_manager.service_registered(service_name):
-            print_problem("This service is already registered")
-    return service_name
+def input_new_service_name() -> str:
+    return questionary.text(
+        "What is the name of the service",
+        style=config.QUESTIONARY_STYLE,
+        instruction="(Leave blank to go back)\n>> ",
+    ).ask()
 
 
 def service_registration_success(service_name: str) -> None:
     print(
         colored("Service", "green"),
-        colored(f"'{service_name}'", 'blue'),
+        colored(f"'{service_name}'", "blue"),
         colored("was registered successfully!", "green"),
     )
 
@@ -105,25 +97,23 @@ def service_registration_success(service_name: str) -> None:
 def service_removal_success(service_name: str) -> None:
     print(
         colored("Service", "green"),
-        colored(f"'{service_name}'", 'blue'),
+        colored(f"'{service_name}'", "blue"),
         colored("was removed", "green"),
     )
 
 
-def show_service_password(
-    pw_manager: PasswordManager, ms_pass: str, service_name: str
-) -> None:
-    password, status = pw_manager.get_password_for_service(ms_pass, service_name)
-    if len(password):
-        print()
-        print(
-            colored("Your", "green"),
-            colored(f"'{service_name}'", 'blue'),
-            colored("password is:", "green"),
-            colored(password, "yellow"),
-        )
-    else:
-        print_problem(status)
+def success_message() -> None:
+    print(colored("Success!", "green"))
+
+
+def show_service_password(password: str, service_name: str) -> None:
+    print()
+    print(
+        colored("Your", "green"),
+        colored(f"'{service_name}'", "blue"),
+        colored("password is:", "green"),
+        colored(password, "yellow"),
+    )
 
 
 def go_back_input():
@@ -131,13 +121,17 @@ def go_back_input():
     input(colored("Press enter to go back", "cyan"))
 
 
-def select_service(pw_manager: PasswordManager) -> str:
-    services = pw_manager.get_available_services()
-    terminal_menu = TerminalMenu(services, menu_cursor_style=("fg_green", "bold"))
-    print(colored("Select a service", "blue"))
-    menu_entry_index = terminal_menu.show()
-    return services[menu_entry_index]
+def select_service(services: list[str], question: str) -> str:
+    return questionary.select(
+        question,
+        services + ["Go back"],
+        style=config.QUESTIONARY_STYLE,
+    ).ask()
 
 
 def no_services_message():
     print(colored("You have no registered services yet", "green"))
+
+
+def input_master_password() -> str:
+    return questionary.password("Master password: ").ask()

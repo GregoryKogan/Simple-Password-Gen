@@ -1,4 +1,4 @@
-# Simple-Password-Gen
+# simple-password-cli
 
 <img width="870" alt="image" src="https://user-images.githubusercontent.com/60318411/219448025-c843cc75-545d-4eb0-b299-5105a91fe2fe.png">
 

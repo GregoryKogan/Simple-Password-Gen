@@ -11,7 +11,7 @@ matplotlib==3.7.0
 numpy==1.24.2
 packaging==23.0
 perlin-noise==1.12
-Pillow==10.2.0
+Pillow==10.3.0
 prompt-toolkit==3.0.36
 pycparser==2.21
 pycryptodome==3.19.1
